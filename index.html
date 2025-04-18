@@ -3,93 +3,213 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Model Viewer</title>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+    <title>Scan QR for AR Model</title>
     <style>
-        /*
-            Basic styling for the model-viewer element.
-            Setting width to 100% and height to 100vh makes it fill the viewport
-            and ensures responsiveness to screen size changes.
-        */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        #container {
+            position: relative;
+            width: 90%;
+            max-width: 600px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allows clicks to pass through to elements below */
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 1em;
+            text-align: center;
+            color: #555;
+        }
         model-viewer {
             width: 100%;
-            height: 100vh; /* Full viewport height for immersive experience */
-            background-color: #f0f0f0; /* Light grey background */
-            /* Ensure the container is positioned for absolute children */
-            position: relative; /* Added to ensure absolute positioning of button works relative to this element */
-            overflow: hidden; /* Hide any overflow */
-            display: block; /* Ensure it behaves like a block element */
+            height: 400px; /* Adjust height as needed */
+            display: none; /* Hidden initially */
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
-
-        /*
-            Style for the AR button.
-            Positioned absolutely at the bottom center of the model-viewer container.
-            Using percentages and transform ensures it stays centered horizontally.
-            Adjusting bottom value and adding padding helps ensure visibility.
-            z-index ensures it is layered above the 3D model rendering.
-            Using !important to try and force these styles over potential overrides.
-        */
-        model-viewer button[slot="ar-button"] {
-            position: absolute !important;
-            bottom: 20px !important; /* Ensure it's 20px from the bottom */
-            left: 50% !important;
-            transform: translateX(-50%) !important; /* Center horizontally */
-            padding: 12px 24px !important;
-            background-color: #4CAF50 !important; /* Green background */
-            color: white !important;
-            border: none !important;
-            border-radius: 6px !important;
-            cursor: pointer !important;
-            font-size: 1rem !important;
-            z-index: 100 !important; /* Increased z-index significantly */
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important; /* Subtle shadow for depth */
-            display: block !important; /* Ensure button is displayed */
-            opacity: 1 !important; /* Ensure button is not transparent */
-            visibility: visible !important; /* Ensure button is visible */
-            /* Make button responsive to touch/click */
-            touch-action: manipulation !important; /* Prevent default touch actions */
-            /* Ensure button is clickable even if model-viewer has overlays */
-            pointer-events: auto !important;
-            /* Remove any default margin/padding that might affect positioning */
-            margin: 0 !important;
+        /* Style for the AR button provided by model-viewer */
+        .ar-button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 10px;
         }
-
-        /* Hover effect for desktop */
-        model-viewer button[slot="ar-button"]:hover {
-            background-color: #45a049 !important; /* Darker green on hover */
+        .ar-button:hover {
+            background-color: #45a049;
         }
-
-        /* Active effect for click/tap */
-         model-viewer button[slot="ar-button"]:active {
-            transform: translateX(-50%) scale(0.98) !important; /* Slightly shrink on press */
-        }
-
-        /*
-            Optional: Media query for very small screens if needed,
-            though absolute positioning with percentages is usually sufficient.
-        */
-        /* @media (max-width: 400px) {
-            model-viewer button[slot="ar-button"] {
-                bottom: 10px !important; // Adjust bottom for smaller screens
-                padding: 10px 20px !important; // Adjust padding
-            }
-        } */
-
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.1.1/dist/jsQR.min.js"></script>
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 </head>
 <body>
 
+    <h1>Scan QR Code for AR Model</h1>
+
+    <div id="container">
+        <video id="video" playsinline></video>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="status">Loading camera...</div>
+
     <model-viewer
-        src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"  ar
+        id="modelViewer"
+        ar
         ar-modes="webxr scene-viewer quick-look"
         camera-controls
-        shadow-intensity="1"
-        alt="A 3D model of an astronaut"
-    >
-        <button slot="ar-button">
-            View in AR
-        </button>
-    </model-viewer>
+        alt="A 3D model loaded from QR code"
+        src="" > </model-viewer>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const statusDiv = document.getElementById('status');
+        const modelViewer = document.getElementById('modelViewer');
+        const canvasContext = canvas.getContext('2d');
+
+        let scanning = false;
+
+        // Function to start the camera and scanning
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = stream;
+                video.setAttribute('playsinline', true); // required to tell iOS safari we don't want fullscreen
+                video.play();
+                requestAnimationFrame(tick); // Start the scanning loop
+                statusDiv.innerText = 'Camera loaded. Point at a QR code.';
+                scanning = true;
+            } catch (err) {
+                console.error("Error accessing camera: ", err);
+                statusDiv.innerText = 'Error accessing camera. Please ensure you have a camera and grant permission.';
+            }
+        }
+
+        // Scanning loop
+        function tick() {
+            if (!scanning) {
+                return; // Stop scanning if flag is false
+            }
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "flipAndInvert",
+                });
+
+                if (code) {
+                    // QR code found!
+                    scanning = false; // Stop scanning
+                    console.log("Found QR code", code);
+                    statusDiv.innerText = `QR Code Found: ${code.data}`;
+
+                    // Highlight the QR code (optional)
+                    drawLine(code.location.topLeftCorner, code.location.topRightCorner, '#FF0000');
+                    drawLine(code.location.topRightCorner, code.location.bottomRightCorner, '#FF0000');
+                    drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner, '#FF0000');
+                    drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner, '#FF0000');
+
+                    // Attempt to load the model
+                    loadModel(code.data);
+
+                } else {
+                    // No QR code found, continue scanning
+                    statusDiv.innerText = 'Scanning for QR code...';
+                }
+            }
+            requestAnimationFrame(tick); // Continue the loop
+        }
+
+        // Helper function to draw lines for highlighting
+        function drawLine(begin, end, color) {
+            canvasContext.beginPath();
+            canvasContext.moveTo(begin.x, begin.y);
+            canvasContext.lineTo(end.x, end.y);
+            canvasContext.lineWidth = 4;
+            canvasContext.strokeStyle = color;
+            canvasContext.stroke();
+        }
+
+        // Function to load the 3D model
+        function loadModel(modelUrl) {
+             // Basic URL validation (you might want more robust validation)
+            try {
+                new URL(modelUrl); // Check if it's a valid URL
+            } catch (e) {
+                statusDiv.innerText = `Invalid URL found in QR code: ${modelUrl}`;
+                console.error("Invalid URL:", modelUrl);
+                // Optionally restart scanning after a delay
+                setTimeout(() => {
+                     statusDiv.innerText = 'Invalid URL. Restarting scan...';
+                     scanning = true;
+                     requestAnimationFrame(tick);
+                }, 3000);
+                return;
+            }
+
+
+            modelViewer.setAttribute('src', modelUrl);
+            modelViewer.style.display = 'block'; // Show the model-viewer
+
+            // Optional: Listen for model loading events
+            modelViewer.addEventListener('load', () => {
+                statusDiv.innerText = 'Model loaded. Tap the AR button to view in AR.';
+            });
+
+             modelViewer.addEventListener('error', (event) => {
+                console.error("Error loading model:", event);
+                statusDiv.innerText = `Error loading model from ${modelUrl}. Please check the URL.`;
+                 // Optionally restart scanning after a delay
+                setTimeout(() => {
+                     statusDiv.innerText = 'Model loading failed. Restarting scan...';
+                     modelViewer.style.display = 'none'; // Hide model-viewer
+                     scanning = true;
+                     requestAnimationFrame(tick);
+                }, 3000);
+            });
+
+             // model-viewer automatically handles the AR button and experience
+             // based on the 'ar' and 'ar-modes' attributes and device support.
+        }
+
+        // Start everything when the window loads
+        window.onload = startCamera;
+
+    </script>
 
 </body>
 </html>
