@@ -42,8 +42,6 @@
         }
     </script>
 
-</head>
-<body class="bg-gray-100 flex items-center justify-center h-screen">
     <script type="module">
         // Import necessary components using bare specifiers which will be resolved by the importmap
         import * as THREE from 'three';
@@ -84,7 +82,7 @@
             // Load a 3D model (replace 'path/to/your/model.gltf' with your model's path)
             const loader = new GLTFLoader(); // Use the imported GLTFLoader
             loader.load(
-                'https://github.com/ajaymarco/test/raw/refs/heads/main/car.glb', // Example model
+                'https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf', // Example model
                 function (gltf) {
                     model = gltf.scene;
                     // Scale and position the model if necessary
@@ -161,5 +159,7 @@
         }
 
     </script>
-</body>
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    </body>
 </html>
