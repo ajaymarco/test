@@ -10,7 +10,14 @@
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
+        /* The ARButton.js script will create its own button,
+           so we can hide the initial one or remove it.
+           Keeping it hidden for now. */
         #ar-button {
+            display: none; /* Hide the initial button */
+        }
+        /* Style for the button created by ARButton.js */
+        .ar-button {
             position: absolute;
             bottom: 20px;
             left: 50%;
@@ -25,15 +32,24 @@
             z-index: 10;
         }
     </style>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
 </head>
 <body class="bg-gray-100 flex items-center justify-center h-screen">
-    <button id="ar-button" class="rounded">Start AR</button>
+    <script type="module">
+        // Import necessary components using bare specifiers which will be resolved by the importmap
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/webxr/ARButton.js"></script>
-
-    <script>
         let camera, scene, renderer;
         let model; // To hold our 3D model
         let hitTestSource = null;
@@ -66,9 +82,9 @@
             scene.add(light);
 
             // Load a 3D model (replace 'path/to/your/model.gltf' with your model's path)
-            const loader = new THREE.GLTFLoader();
+            const loader = new GLTFLoader(); // Use the imported GLTFLoader
             loader.load(
-                'https://github.com/ajaymarco/test/raw/refs/heads/main/car.glb', // Example model
+                'https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf', // Example model
                 function (gltf) {
                     model = gltf.scene;
                     // Scale and position the model if necessary
@@ -80,10 +96,8 @@
                     scene.add(model);
 
                     // Add the AR button after the model is loaded
+                    // Use the imported ARButton
                     document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
-
-                    // Hide the initial AR button and show the one created by ARButton.js
-                     document.getElementById('ar-button').style.display = 'none';
 
                 },
                 undefined, // called while loading is progressing
