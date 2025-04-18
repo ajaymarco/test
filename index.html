@@ -3,253 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Model with AR</title>
+    <title>AR Model Viewer</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background-color: #cccccc;}
-        canvas { display: block; width: 100%; height: calc(100vh - 50px); } /* Adjust canvas height for button */
-        #ar-button {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 10; /* Ensure button is above the canvas */
-            border: none;
-            border-radius: 8px;
-            background-color: #007bff;
-            color: white;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: background-color 0.3s ease;
-        }
-        #ar-button:hover {
-            background-color: #0056b3;
-        }
-        #loading-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #333;
-            font-size: 20px;
-            z-index: 5;
+        /* Basic styling for the model-viewer element */
+        model-viewer {
+            width: 100%;
+            height: 100vh; /* Make it full viewport height */
+            background-color: #f0f0f0; /* Light grey background */
         }
     </style>
 </head>
 <body>
 
-    <div id="loading-text">Loading 3D Model...</div>
-    <button id="ar-button" style="display: none;">View in AR</button>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script>
-        // --- Three.js Setup ---
-        let scene, camera, renderer;
-        let model; // Our 3D model
-        const arButton = document.getElementById('ar-button');
-        const loadingText = document.getElementById('loading-text');
-
-        // Placeholder for AR session
-        let xrSession = null;
-
-        function init() {
-            // Create a scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xcccccc); // Set a background color
-
-            // Create a camera
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.z = 5; // Initial position, will be adjusted after model load
-
-            // Create a renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true; // Enable XR rendering for AR
-            document.body.appendChild(renderer.domElement);
-
-            // --- Add Lights ---
-            // Lights are important for materials on loaded models
-            const ambientLight = new THREE.AmbientLight(0x404040, 2); // soft white light
-            scene.add(ambientLight);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(1, 1, 1).normalize();
-            scene.add(directionalLight);
-
-            // --- Load 3D Model ---
-            const loader = new THREE.GLTFLoader();
-            const modelUrl = 'car.glb'; // Example model URL
-
-            loader.load(modelUrl, function (gltf) {
-                model = gltf.scene;
-                scene.add(model);
-
-                // --- Adjust model scale and position to fit view ---
-                fitModelToView(model, camera);
-
-                loadingText.style.display = 'none'; // Hide loading text
-                checkXRSupport(); // Check for AR support after model loads
-
-            },
-            // Optional: called when progressing, not needed for basic error handling
-            undefined,
-            // Called when loading has errors
-            function (error) {
-                console.error('An error occurred while loading the model:', error);
-                // Attempt to get a more specific error message if available
-                let errorMessage = 'Failed to load model.';
-                if (error && error.message) {
-                    errorMessage += ' Error: ' + error.message;
-                } else if (error && error.target && error.target.status) {
-                     errorMessage += ' HTTP Status: ' + error.target.status;
-                }
-                loadingText.textContent = errorMessage;
-            });
-
-            // Handle window resizing
-            window.addEventListener('resize', onWindowResize, false);
-
-            // Start the animation loop (initially for desktop view)
-            renderer.setAnimationLoop(animate); // Use setAnimationLoop for compatibility with XR
-        }
-
-        // --- Function to fit model to camera view ---
-        function fitModelToView(object, camera, padding = 1.2) {
-            const box = new THREE.Box3().setFromObject(object);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-
-            // Center the model around the origin
-            object.position.sub(center);
-
-            // Calculate the scale factor to fit the model
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const fov = camera.fov * (Math.PI / 180); // Convert fov to radians
-            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-
-            // Add some padding
-            cameraZ *= padding;
-
-            // Adjust camera position
-            camera.position.set(center.x, center.y, cameraZ);
-            camera.lookAt(center); // Make camera look at the center of the model
-
-            // Ensure camera is not inside the model
-            const minZ = box.min.z + object.position.z;
-            if (camera.position.z < minZ + camera.near) {
-                camera.position.z = minZ + camera.near;
-            }
-
-             // Update camera projection matrix
-             camera.updateProjectionMatrix();
-        }
-
-
-        // --- Animation Loop ---
-        function animate() {
-            // Rotate the model if it's loaded
-            if (model) {
-                // Model rotation is now relative to its new centered position
-                model.rotation.y += 0.01;
-            }
-
-            // Rendering is handled by renderer.setAnimationLoop
-            // renderer.render(scene, camera); // This is handled by the XR session when active
-        }
-
-        // --- Handle Window Resize ---
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        // --- AR Functionality ---
-
-        // Check if AR is supported
-        function checkXRSupport() {
-            if ('xr' in navigator) {
-                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-                    if (supported) {
-                        arButton.style.display = 'block'; // Show the AR button
-                        arButton.addEventListener('click', onARButtonClick);
-                    } else {
-                        arButton.textContent = 'AR not supported on this device';
-                        arButton.style.display = 'block';
-                        arButton.disabled = true;
-                    }
-                });
-            } else {
-                arButton.textContent = 'WebXR not available';
-                arButton.style.display = 'block';
-                arButton.disabled = true;
-            }
-        }
-
-        // Handle AR button click
-        function onARButtonClick() {
-            if (!xrSession) {
-                // Request an immersive-ar session
-                navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local', 'hit-test'], // Request features needed for AR
-                    optionalFeatures: ['dom-overlay'], // Example optional feature
-                    domOverlay: { root: document.body } // Example for DOM overlay
-                }).then(onSessionStarted).catch(onSessionError);
-            } else {
-                // End the existing session
-                xrSession.end();
-            }
-        }
-
-        // Handle XR session started
-        function onSessionStarted(session) {
-            xrSession = session;
-            arButton.textContent = 'Exit AR'; // Change button text
-
-            // Set the renderer's session
-            renderer.xr.setSession(session);
-
-            // Basic AR setup (more complex AR logic goes here)
-            // This includes setting up the AR camera, handling frame updates,
-            // processing hit test results to place objects, etc.
-            console.log('AR session started.');
-
-            session.addEventListener('end', onSessionEnded);
-
-            // Start the AR rendering loop
-            renderer.setAnimationLoop((timestamp, frame) => {
-                // In AR, rendering is driven by the XR frame
-                // You would typically update object positions based on tracking data here
-                renderer.render(scene, camera);
-            });
-        }
-
-        // Handle XR session ended
-        function onSessionEnded() {
-            xrSession = null;
-            arButton.textContent = 'View in AR'; // Restore button text
-            console.log('AR session ended.');
-
-            // Restore the standard animation loop for desktop view
-            renderer.setAnimationLoop(animate);
-        }
-
-        // Handle XR session error
-        function onSessionError(error) {
-            console.error('Failed to start AR session:', error);
-             let errorMessage = 'Failed to start AR session.';
-                if (error && error.message) {
-                    errorMessage += ' Error: ' + error.message;
-                }
-            arButton.textContent = errorMessage;
-            arButton.disabled = true;
-        }
-
-        // Initialize the scene when the window loads
-        window.onload = init;
-
-    </script>
+    <model-viewer
+        src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"  ar
+        ar-modes="webxr scene-viewer quick-look"
+        camera-controls
+        shadow-intensity="1"
+        alt="A 3D model of an astronaut"
+    >
+        <button slot="ar-button" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            View in AR
+        </button>
+    </model-viewer>
 
 </body>
 </html>
