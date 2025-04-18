@@ -1,189 +1,69 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>3D Model with AR</title>
-    <meta name="description" content="Displaying a 3D model with AR capabilities">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdn.tailwindcss.com"></script>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Model Viewer with AR</title>
+    <script src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
-        /* The ARButton.js script will create its own button,
-           so we can hide the initial one or remove it.
-           Keeping it hidden for now. */
-        #ar-button {
-            display: none; /* Hide the initial button */
-        }
-        /* Style for the button created by ARButton.js */
-        .ar-button {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            z-index: 10;
-        }
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #f0f0f0;
+      }
+      #model-container {
+        width: 90%;
+        max-width: 800px;
+        height: auto;
+        aspect-ratio: 1 / 1;
+        position: relative;
+      }
+      model-viewer {
+        width: 100%;
+        height: 100%;
+        display: block;
+        margin: 0 auto;
+      }
     </style>
+  </head>
+  <body>
+    <div id="model-container">
+      <model-viewer
+        src="https://github.com/ajaymarco/test/raw/refs/heads/main/car.glb"
+        alt="A 3D model of an astronaut"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        camera-controls
+        auto-rotate
+        style="
+          border-radius: 16px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+          background-color: #ffffff;
+        "
+      ></model-viewer>
+    </div>
+    <script>
+      const modelViewer = document.querySelector("model-viewer");
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
-            }
-        }
+      modelViewer.addEventListener("load", () => {
+        console.log("Model loaded successfully");
+      });
+
+      modelViewer.addEventListener("error", (error) => {
+        console.error("Error loading model:", error);
+      });
+
+      modelViewer.addEventListener("ar-start", () => {
+        console.log("AR mode started");
+      });
+
+      modelViewer.addEventListener("ar-end", () => {
+        console.log("AR mode ended");
+      });
     </script>
-
-    <script type="module">
-        // Import necessary components using bare specifiers which will be resolved by the importmap
-        import * as THREE from 'three';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
-
-        let camera, scene, renderer;
-        let model; // To hold our 3D model
-        let hitTestSource = null;
-        let hitTestSourceInitialized = false;
-        let reticle; // Visual indicator for hit test
-
-        init();
-        // No animate() loop initially, as rendering will be driven by the AR session
-
-        function init() {
-            const container = document.createElement('div');
-            document.body.appendChild(container);
-
-            // Create a scene
-            scene = new THREE.Scene();
-
-            // Create a camera
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-            // Create a renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true; // Enable XR for AR
-            renderer.outputEncoding = THREE.sRGBEncoding; // Set output encoding for correct colors
-
-            container.appendChild(renderer.domElement);
-
-            // Add lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Soft ambient light
-            scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Directional light for shading
-            directionalLight.position.set(1, 1, 1).normalize();
-            scene.add(directionalLight);
-
-            // Create a reticle to show hit test results
-            const reticleGeometry = new THREE.RingGeometry(0.05, 0.07, 32).rotateX(-Math.PI / 2);
-            const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
-            reticle.matrixAutoUpdate = false; // We'll update the matrix manually based on hit test
-            reticle.visible = false; // Initially hide the reticle
-            scene.add(reticle);
-
-
-            // Load the 3D model (replace with your .glb file path)
-            const loader = new GLTFLoader();
-            loader.load(
-                'https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf', // Replace with the URL of your .glb file
-                function (gltf) {
-                    model = gltf.scene;
-                    // Scale and position the model if necessary
-                    model.scale.set(0.1, 0.1, 0.1);
-                    model.visible = false; // Keep model hidden until placed in AR
-
-                    // Add the model to the scene
-                    scene.add(model);
-
-                    // Add the AR button after the model is loaded
-                    document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
-
-                },
-                undefined, // called while loading is progressing
-                function (error) {
-                    console.error('An error occurred while loading the model:', error);
-                    // You might want to display an error message to the user here
-                }
-            );
-
-            // Handle window resizing
-            window.addEventListener('resize', onWindowResize, false);
-
-            // Set the render loop for AR
-            renderer.setAnimationLoop(render);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function render(timestamp, frame) {
-            if (frame) {
-                const referenceSpace = renderer.xr.getReferenceSpace();
-                const session = renderer.xr.getSession();
-
-                if (!hitTestSourceInitialized) {
-                    // Request a hit test source
-                    session.requestHitTestSource({ space: referenceSpace })
-                        .then(_hitTestSource => {
-                            hitTestSource = _hitTestSource;
-                            hitTestSourceInitialized = true;
-                        })
-                        .catch(error => {
-                            console.error('Failed to create hit test source:', error);
-                            // Handle cases where hit test is not available
-                        });
-                }
-
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
-
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        const pose = hit.getPose(referenceSpace);
-
-                        // Position the reticle at the hit test location
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(pose.transform.matrix);
-
-                        // If the model hasn't been placed yet, place it at the reticle's position
-                        // You might want a button or gesture to actually place the model
-                        // For now, we'll place it on the first successful hit test
-                        if (model && !model.userData.isPlaced) {
-                             model.matrix.fromArray(pose.transform.matrix);
-                             model.visible = true;
-                             model.userData.isPlaced = true; // Mark model as placed
-                             reticle.visible = false; // Hide reticle after placing model
-                        }
-
-                    } else {
-                         // If no hit test result, hide the reticle and model (if not placed)
-                         reticle.visible = false;
-                         if (model && !model.userData.isPlaced) {
-                             model.visible = false;
-                         }
-                    }
-                }
-            }
-
-            renderer.render(scene, camera);
-        }
-
-    </script>
-</head>
-<body class="bg-gray-100 flex items-center justify-center h-screen">
-    </body>
+  </body>
 </html>
