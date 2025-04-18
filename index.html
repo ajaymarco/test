@@ -12,6 +12,28 @@
             height: 100vh; /* Make it full viewport height */
             background-color: #f0f0f0; /* Light grey background */
         }
+
+        /* Style for the AR button - positioned as an overlay */
+        model-viewer button[slot="ar-button"] {
+            position: absolute;
+            bottom: 30px; /* Slightly higher from the bottom */
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px; /* Slightly larger padding */
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px; /* Slightly more rounded corners */
+            cursor: pointer;
+            font-size: 1rem; /* Readable font size */
+            z-index: 10; /* Ensure it stacks above the model viewer content */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Add a subtle shadow */
+            transition: background-color 0.3s ease; /* Smooth hover effect */
+        }
+
+        model-viewer button[slot="ar-button"]:hover {
+            background-color: #45a049; /* Darker green on hover */
+        }
     </style>
 </head>
 <body>
@@ -23,7 +45,7 @@
         shadow-intensity="1"
         alt="A 3D model of an astronaut"
     >
-        <button slot="ar-button" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        <button slot="ar-button">
             View in AR
         </button>
     </model-viewer>
