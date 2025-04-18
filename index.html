@@ -52,6 +52,7 @@
         let model; // To hold our 3D model
         let hitTestSource = null;
         let hitTestSourceInitialized = false;
+        let reticle; // Visual indicator for hit test
 
         init();
         // No animate() loop initially, as rendering will be driven by the AR session
@@ -71,36 +72,48 @@
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true; // Enable XR for AR
+            renderer.outputEncoding = THREE.sRGBEncoding; // Set output encoding for correct colors
 
             container.appendChild(renderer.domElement);
 
-            // Add a light source
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
-            scene.add(light);
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Soft ambient light
+            scene.add(ambientLight);
 
-            // Load a 3D model (replace 'path/to/your/model.gltf' with your model's path)
-            const loader = new GLTFLoader(); // Use the imported GLTFLoader
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Directional light for shading
+            directionalLight.position.set(1, 1, 1).normalize();
+            scene.add(directionalLight);
+
+            // Create a reticle to show hit test results
+            const reticleGeometry = new THREE.RingGeometry(0.05, 0.07, 32).rotateX(-Math.PI / 2);
+            const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
+            reticle.matrixAutoUpdate = false; // We'll update the matrix manually based on hit test
+            reticle.visible = false; // Initially hide the reticle
+            scene.add(reticle);
+
+
+            // Load the 3D model (replace with your .glb file path)
+            const loader = new GLTFLoader();
             loader.load(
-                'https://github.com/ajaymarco/test/raw/refs/heads/main/car.glb', // Example model
+                'https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf', // Replace with the URL of your .glb file
                 function (gltf) {
                     model = gltf.scene;
                     // Scale and position the model if necessary
                     model.scale.set(0.1, 0.1, 0.1);
-                    // The initial position can be set here, but in AR, the position will be updated based on hit testing.
-                    // model.position.set(0, 0, -1); // Example initial position in front of camera
+                    model.visible = false; // Keep model hidden until placed in AR
 
-                    // Add the model to the scene initially (it will be hidden until placed in AR)
+                    // Add the model to the scene
                     scene.add(model);
 
                     // Add the AR button after the model is loaded
-                    // Use the imported ARButton
                     document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
                 },
                 undefined, // called while loading is progressing
                 function (error) {
                     console.error('An error occurred while loading the model:', error);
+                    // You might want to display an error message to the user here
                 }
             );
 
@@ -131,6 +144,7 @@
                         })
                         .catch(error => {
                             console.error('Failed to create hit test source:', error);
+                            // Handle cases where hit test is not available
                         });
                 }
 
@@ -141,14 +155,24 @@
                         const hit = hitTestResults[0];
                         const pose = hit.getPose(referenceSpace);
 
-                        // Position the model at the hit test result location
-                        if (model) {
-                             model.visible = true; // Make the model visible
-                             model.matrix.fromArray(pose.transform.matrix); // Position using the hit pose matrix
+                        // Position the reticle at the hit test location
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(pose.transform.matrix);
+
+                        // If the model hasn't been placed yet, place it at the reticle's position
+                        // You might want a button or gesture to actually place the model
+                        // For now, we'll place it on the first successful hit test
+                        if (model && !model.userData.isPlaced) {
+                             model.matrix.fromArray(pose.transform.matrix);
+                             model.visible = true;
+                             model.userData.isPlaced = true; // Mark model as placed
+                             reticle.visible = false; // Hide reticle after placing model
                         }
+
                     } else {
-                         // If no hit test result, hide the model
-                         if (model) {
+                         // If no hit test result, hide the reticle and model (if not placed)
+                         reticle.visible = false;
+                         if (model && !model.userData.isPlaced) {
                              model.visible = false;
                          }
                     }
