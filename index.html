@@ -3,255 +3,290 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan QR for AR Model</title>
+    <title>QR Code AR Model Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background-color: #f0f0f0;
-            color: #333;
+            font-family: 'Inter', sans-serif;
         }
-        #container {
-            position: relative;
-            width: 90%;
-            max-width: 600px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            background-color: #fff;
-        }
-        video {
+        #ar-container {
+            position: relative; /* Make sure the container is a positioning context */
             width: 100%;
-            height: auto;
-            display: block;
+            height: 100vh;
+            overflow: hidden; /* Prevent scrollbars */
         }
-        canvas {
-            position: absolute;
+        #video-feed {
+            position: fixed; /* Overlay the entire window */
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none; /* Allows clicks to pass through to elements below */
+            object-fit: cover; /* Ensure video covers the whole area */
+            z-index: 1;
         }
-        #status {
-            margin-top: 20px;
-            font-size: 1em;
-            text-align: center;
-            color: #555;
-            min-height: 1.2em; /* Reserve space to prevent layout shifts */
-        }
-        model-viewer {
+        #ar-scene {
+            position: absolute; /* Position absolutely within the container */
+            top: 0;
+            left: 0;
             width: 100%;
-            height: 400px; /* Adjust height as needed */
-            display: none; /* Hidden initially */
-            margin-top: 20px;
+            height: 100%;
+            z-index: 2;
+            /* The scene will be manipulated by AR.js, but we can style it here if needed */
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+        }
+        .scanning-animation {
+            border: 4px solid #4CAF50; /* Green border */
+            border-radius: 16px;
+            width: 200px;
+            height: 200px;
+            animation: scanning 2s linear infinite; /* Apply the animation */
+        }
+        @keyframes scanning {
+            0% {
+                transform: translateY(-100px);
+            }
+            50% {
+                transform: translateY(100px);
+            }
+            100% {
+                transform: translateY(-100px);
+            }
+        }
+        .model-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 4; /* Ensure model is above the video */
+            width: 200px; /* Initial size, can be adjusted */
+            height: 200px;
+            /* Add styling for your 3D model here */
+        }
+        #error-message, #model-load-error-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 16px;
             border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+            font-size: 1rem;
         }
-        button {
-            padding: 10px 20px;
-            border: none;
-            background-color: #007bff;
+        #success-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 255, 0, 0.8);
             color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            margin-top: 10px;
-            margin-bottom: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            z-index: 10;
+            font-size: 1rem;
         }
-        button:hover {
-            background-color: #0056b3;
-        }
-         /* Style for the AR button provided by model-viewer */
-        .ar-button {
-            /* model-viewer creates this button, we can style it */
-            padding: 10px 20px;
-            border: none;
-            background-color: #4CAF50;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            margin-top: 10px;
-        }
-        .ar-button:hover {
-            background-color: #45a049;
-        }
+
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.1.1/dist/jsQR.min.js"></script>
-    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 </head>
-<body>
-
-    <h1>Scan QR Code for AR Model</h1>
-
-    <div id="container">
-        <video id="video" playsinline></video>
-        <canvas id="canvas"></canvas>
+<body class="bg-gray-100">
+    <div id="ar-container">
+        <video id="video-feed" autoplay playsinline></video>
+        <div id="ar-scene"></div>
+        <div id="scanning-overlay" class="overlay flex flex-col items-center justify-center">
+            <div class="scanning-animation"></div>
+            <p class="mt-4 text-white text-lg">Scanning for QR Code...</p>
+        </div>
+        <div id="model-container" class="model-container">
+            </div>
+        <div id="error-message" class="hidden"></div>
+        <div id="model-load-error-message" class="hidden"></div>
+        <div id="success-message" class="hidden"></div>
     </div>
 
-    <div id="status">Loading camera...</div>
-
-    <button id="restartScanButton" style="display: none;">Restart Scan</button>
-
-    <model-viewer
-        id="modelViewer"
-        ar
-        ar-modes="webxr scene-viewer quick-look"
-        camera-controls
-        alt="A 3D model loaded from QR code"
-        src="" > </model-viewer>
-
+    <script src="https://cdn.jsdelivr.net/npm/three@0.139.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.139.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const statusDiv = document.getElementById('status');
-        const modelViewer = document.getElementById('modelViewer');
-        const restartScanButton = document.getElementById('restartScanButton');
-        const canvasContext = canvas.getContext('2d');
+        const arContainer = document.getElementById('ar-container');
+        const videoFeed = document.getElementById('video-feed');
+        const arScene = document.getElementById('ar-scene');
+        const scanningOverlay = document.getElementById('scanning-overlay');
+        const modelContainer = document.getElementById('model-container');
+        const errorMessageElement = document.getElementById('error-message');
+        const modelLoadErrorMessageElement = document.getElementById('model-load-error-message');
+        const successMessageElement = document.getElementById('success-message');
 
-        let scanning = false;
+        let arInitialized = false;
+        let qrCodeFound = false;
+        let modelLoaded = false;
+        let modelViewer; // Will hold the Three.js scene and camera.
+        let gltfModel; // Will hold the loaded GLTF model.
+        let modelName = '';
 
-        // Function to start the camera and scanning
-        async function startCamera() {
-            statusDiv.innerText = 'Loading camera...';
-            modelViewer.style.display = 'none'; // Hide model viewer
-            restartScanButton.style.display = 'none'; // Hide restart button
+        // GitHub repository details
+        const githubRepoOwner = 'YOUR_GITHUB_USERNAME';  // Replace with your GitHub username
+        const githubRepoName = 'YOUR_REPO_NAME';        // Replace with your repository name
+        const githubRepoPath = 'models/';           // Path to the models folder in your repo
+        const rawContentUrl = `https://raw.githubusercontent.com/${githubRepoOwner}/${githubRepoName}/main/${githubRepoPath}`;
 
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = stream;
-                video.setAttribute('playsinline', true); // required to tell iOS safari we don't want fullscreen
-                video.play();
-                requestAnimationFrame(tick); // Start the scanning loop
-                statusDiv.innerText = 'Camera loaded. Point at a QR code.';
-                scanning = true;
-            } catch (err) {
-                console.error("Error accessing camera: ", err);
-                statusDiv.innerText = 'Error accessing camera. Please ensure you have a camera and grant permission.';
-                 restartScanButton.style.display = 'block'; // Show restart button if camera fails
-            }
+        // Function to display error message
+        function showErrorMessage(message) {
+            errorMessageElement.textContent = message;
+            errorMessageElement.classList.remove('hidden');
+            setTimeout(() => {
+                errorMessageElement.classList.add('hidden');
+            }, 5000); // Hide after 5 seconds
         }
 
-        // Scanning loop
-        function tick() {
-            if (!scanning) {
-                return; // Stop scanning if flag is false
-            }
-
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.height = video.videoHeight;
-                canvas.width = video.videoWidth;
-                canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "flipAndInvert",
-                });
-
-                if (code) {
-                    // QR code found!
-                    scanning = false; // Stop scanning immediately
-                    console.log("Found QR code", code);
-                    statusDiv.innerText = `QR Code Found: ${code.data}`;
-
-                    // Highlight the QR code (optional)
-                    drawLine(code.location.topLeftCorner, code.location.topRightCorner, '#FF0000');
-                    drawLine(code.location.topRightCorner, code.location.bottomRightCorner, '#FF0000');
-                    drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner, '#FF0000');
-                    drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner, '#FF0000');
-
-                    // Attempt to load the model
-                    loadModel(code.data);
-
-                } else {
-                    // No QR code found, continue scanning
-                    statusDiv.innerText = 'Scanning for QR code...';
-                     // Clear canvas if no code is found to remove previous highlights
-                    canvasContext.clearRect(0, 0, canvas.width, canvas.height);
-                }
-            }
-            requestAnimationFrame(tick); // Continue the loop
+        // Function to display a success message
+        function showSuccessMessage(message) {
+            successMessageElement.textContent = message;
+            successMessageElement.classList.remove('hidden');
+            setTimeout(() => {
+                successMessageElement.classList.add('hidden');
+            }, 3000); // Hide after 3 seconds
         }
 
-        // Helper function to draw lines for highlighting
-        function drawLine(begin, end, color) {
-            canvasContext.beginPath();
-            canvasContext.moveTo(begin.x, begin.y);
-            canvasContext.lineTo(end.x, end.y);
-            canvasContext.lineWidth = 4;
-            canvasContext.strokeStyle = color;
-            canvasContext.stroke();
-        }
+        // Function to initialize AR.js and A-Frame
+        async function initAR() {
+            if (arInitialized) return;
 
-        // Function to load the 3D model
-        function loadModel(modelUrl) {
-             // Basic URL validation
-            try {
-                const url = new URL(modelUrl);
-                 // Optional: Add more specific checks for common issues, e.g., GitHub raw content
-                 if (url.hostname === 'github.com' && !url.pathname.includes('/raw/')) {
-                     statusDiv.innerText = `Potential issue: This looks like a GitHub page URL, not a raw file URL.`;
-                 } else if (url.protocol !== 'https:') {
-                     statusDiv.innerText = `Warning: Model URL is not HTTPS. May not load due to browser security policies.`;
-                 }
-
-            } catch (e) {
-                statusDiv.innerText = `Invalid URL format found in QR code: ${modelUrl}`;
-                console.error("Invalid URL format:", modelUrl);
-                modelViewer.style.display = 'none'; // Hide model-viewer
-                restartScanButton.style.display = 'block'; // Show restart button
-                scanning = true; // Restart scanning
-                requestAnimationFrame(tick);
+            // Check for WebXR support (optional, for future expansion)
+            if (!navigator.xr) {
+                showErrorMessage('WebXR is not supported in this browser.');
                 return;
             }
 
-            statusDiv.innerText = `Attempting to load model from: ${modelUrl}`;
-            modelViewer.setAttribute('src', modelUrl);
-            modelViewer.style.display = 'block'; // Show the model-viewer container
+            // Setup A-Frame scene
+            const scene = document.createElement('a-scene');
+            scene.setAttribute('id', 'ar-scene');
+            scene.setAttribute('embedded', ''); // Use embedded mode for easier integration
+            scene.setAttribute('arjs', 'sourceType: webcam; debugUIEnabled: false; detectionMode: mono;'); //minimalUI
 
-            // Clear previous listeners to avoid duplicates
-            modelViewer.removeEventListener('load', modelLoadHandler);
-            modelViewer.removeEventListener('error', modelErrorHandler);
+            // Create a camera
+            const camera = document.createElement('a-camera');
+            camera.setAttribute('id', 'ar-camera');
+            camera.setAttribute('position', '0 0 0');
+            scene.appendChild(camera);
 
-            // Add new listeners
-            modelViewer.addEventListener('load', modelLoadHandler);
-            modelViewer.addEventListener('error', modelErrorHandler);
+            arScene.parentElement.appendChild(scene); // Append the scene to the container
 
-             // model-viewer automatically handles the AR button and experience
-             // based on the 'ar' and 'ar-modes' attributes and device support.
+            arInitialized = true;
+            return scene;
         }
 
-        // Handler for successful model loading
-        function modelLoadHandler() {
-            statusDiv.innerText = 'Model loaded successfully. Tap the AR button to view in AR.';
-            restartScanButton.style.display = 'block'; // Show restart button
+        // Function to load 3D model from GitHub
+        function loadModel(modelName) {
+            if (modelLoaded) return;
+            const modelUrl = `${rawContentUrl}${modelName}`;
+            console.log('Loading model from:', modelUrl);
+
+            let scene = document.querySelector('a-scene');
+
+            if (!scene) {
+                scene = initAR();
+            }
+            // Use Three.js GLTFLoader to load the model
+            const loader = new THREE.GLTFLoader();
+            loader.load(modelUrl,
+                (gltf) => {
+                    // Model loaded successfully
+                    gltfModel = gltf.scene;
+
+                    // Add the model to the scene
+                    const modelEntity = document.createElement('a-entity');
+                    modelEntity.setAttribute('gltf-model', modelUrl);
+                    modelEntity.setAttribute('scale', '0.1 0.1 0.1');  // Adjust scale as needed
+                    modelEntity.setAttribute('position', '0 0 0'); // Initial position
+                    scene.appendChild(modelEntity);
+
+                    modelLoaded = true;
+                    scanningOverlay.style.display = 'none'; // Hide the scanning overlay
+                    showSuccessMessage(`Model "${modelName}" loaded!`);
+                },
+                (xhr) => {
+                    // Progress indication (optional)
+                    console.log(`${(xhr.loaded / xhr.total) * 100}% loaded`);
+                },
+                (error) => {
+                    // Handle model loading error
+                    console.error('Error loading model:', error);
+                    showErrorMessage(`Error loading model: ${error.message}`);
+                    modelLoadErrorMessageElement.textContent = `Error loading model: ${error.message}`;
+                    modelLoadErrorMessageElement.classList.remove('hidden');
+                }
+            );
         }
 
-        // Handler for model loading errors
-        function modelErrorHandler(event) {
-            console.error("Error loading model:", event);
-            statusDiv.innerText = `Error loading model. Check URL, CORS, and model file. URL: ${modelViewer.getAttribute('src')}`;
-            modelViewer.style.display = 'none'; // Hide model-viewer
-            restartScanButton.style.display = 'block'; // Show restart button
-            scanning = true; // Restart scanning
-            requestAnimationFrame(tick);
+        // Function to start the QR code scanning process
+        async function startScanning() {
+            try {
+                // Get user media (video stream)
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                videoFeed.srcObject = stream;
+                videoFeed.onloadedmetadata = () => {
+                    videoFeed.play();
+                };
+
+                // Initialize AR.js
+                const scene = await initAR();
+
+                // Setup QR code tracking using tracking.js
+                const qrTracker = new tracking.Tracker('qr');
+                qrTracker.on('track', (event) => {
+                    if (event.data.length > 0) {
+                        // QR code found!
+                        const qrCodeData = event.data[0].data;
+                        console.log('QR Code Data:', qrCodeData);
+                        if (!qrCodeFound) {
+                            qrCodeFound = true;
+                            modelName = qrCodeData; //set the model name
+                            loadModel(qrCodeData); // Load the model
+                            // Stop video stream and tracking
+                            const stream = videoFeed.srcObject;
+                            const tracks = stream.getTracks();
+                            tracks.forEach(track => track.stop());
+                            // Remove the video feed
+                            videoFeed.srcObject = null;
+                        }
+                    }
+                });
+
+                // Start tracking the video stream for QR codes
+                const trackingInterval = setInterval(() => {
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = videoFeed.videoWidth;
+                    canvas.height = videoFeed.videoHeight;
+                    context.drawImage(videoFeed, 0, 0, videoFeed.videoWidth, videoFeed.videoHeight);
+                    const imageData = context.getImageData(0, 0, videoFeed.videoWidth, videoFeed.videoHeight);
+                    qrTracker.track(imageData.data, videoFeed.videoWidth, videoFeed.videoHeight);
+                }, 250); // Check for QR codes every 250ms
+
+            } catch (error) {
+                console.error('Error starting scanning:', error);
+                showErrorMessage(`Error starting scanning: ${error.message}`);
+            }
         }
 
-        // Event listener for the restart button
-        restartScanButton.addEventListener('click', startCamera);
-
-
-        // Start everything when the window loads
-        window.onload = startCamera;
-
+        // Initialize the AR experience when the page loads
+        window.addEventListener('load', () => {
+            startScanning();
+        });
     </script>
-
 </body>
 </html>
