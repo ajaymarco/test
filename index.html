@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.139.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.139.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ar.js@2.2.2/aframe/build/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ar.js@2.2.2/aframe/examples/js/marker-controls.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
       body {
@@ -62,8 +61,8 @@
     <div class="ar-container">
       <div class="loading-overlay" id="loading">Loading...</div>
       <a-scene id="ar-scene" embedded arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; maxDetectionRate: 30; canvasWidth: 640; canvasHeight: 480;">
-        <a-marker id="qr-marker" type="qr" qrcode="https://your-website.com/car">
-          <a-entity id="car-model" gltf-model="#car" scale="0.005 0.005 0.005" visible="false" rotation="0 90 0"></a-entity>
+        <a-marker id="qr-marker" type="qr" qrcode="car">
+          <a-entity id="car-model" gltf-model="car.glb" scale="0.005 0.005 0.005" visible="false" rotation="0 90 0"></a-entity>
         </a-marker>
         <a-camera id="ar-camera" position="0 0 0"></a-camera>
       </a-scene>
@@ -79,7 +78,7 @@
       // Load the 3D model
       const loader = new THREE.GLTFLoader();
       loader.load(
-        "car.glb",
+        "car.glb", // Adjusted path for GitHub Pages
         (gltf) => {
           const model = gltf.scene;
           model.name = "car";
@@ -107,8 +106,8 @@
         console.log(`Marker found: ${markerId}`);
         textOverlay.classList.add("hidden");
 
-        // Simulate QR code data retrieval
-        const qrData = "car"; // Replace with actual QR code data if available
+        // Get the QR code data.  Assumes AR.js can read the data.
+        const qrData = event.target.getAttribute('qrcode');
 
         if (qrData === "car" && modelLoaded) {
           carModel.setAttribute("visible", "true");
