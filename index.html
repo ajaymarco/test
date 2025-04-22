@@ -29,6 +29,8 @@
             background-color: #fff;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 500px; /* Limit width for better readability */
+            width: 90%; /* Make it responsive */
         }
 
         #qr-scanner-container h1 {
@@ -48,7 +50,8 @@
         #qr-scanner-results {
             margin-top: 20px;
             font-size: 1.1em;
-            color: #555;
+            color: #d9534f; /* Use a color for error messages */
+            min-height: 1.5em; /* Reserve space to prevent layout shifts */
         }
 
         /* Initially hide the AR scene container */
@@ -67,10 +70,16 @@
             height: 100%;
         }
 
+        /* Style for the temporary box indicator */
+        .marker-indicator {
+             display: none; /* Initially hidden */
+        }
+
         /* Responsive adjustments */
         @media (max-width: 600px) {
             #qr-scanner-container {
                 padding: 15px;
+                width: 95%;
             }
             #qr-scanner-container h1 {
                 font-size: 1.5em;
@@ -101,6 +110,8 @@
         >
 
             <a-marker id="dynamic-marker" type="unknown">
+                 <a-box id="marker-indicator-box" class="marker-indicator" position="0 0.05 0" scale="0.1 0.1 0.1" color="#4CC3D9"></a-box>
+
                 <a-entity
                     id="dynamic-model"
                     scale="0.5 0.5 0.5"  position="0 0 0"    rotation="0 0 0"
@@ -121,6 +132,8 @@
         const dynamicMarker = document.getElementById('dynamic-marker');
         const dynamicModel = document.getElementById('dynamic-model');
         const arScene = document.getElementById('ar-scene');
+        const markerIndicatorBox = document.getElementById('marker-indicator-box');
+
 
         // Configuration for html5-qrcode
         const html5QrCode = new Html5Qrcode("reader");
@@ -138,6 +151,7 @@
                 // Use the decoded text (model name) to determine the model and pattern file
                 const modelName = decodedText;
                 // Construct URLs relative to the index.html file
+                // Ensure these paths are correct relative to your GitHub Pages root
                 const modelUrl = `./models/${modelName}.gltf`; // Assuming .gltf format and models in ./models/
                 const patternUrl = `./patterns/${modelName}.patt`; // Assuming patterns in ./patterns/
 
@@ -145,44 +159,74 @@
                 console.log(`Attempting to load pattern from: ${patternUrl}`);
 
                 // Update the AR marker and model attributes
-                // We set these BEFORE making the AR scene visible
                 dynamicMarker.setAttribute('type', 'pattern');
                 dynamicMarker.setAttribute('url', patternUrl);
-                dynamicModel.setAttribute('gltf-model', modelUrl);
+
+                // --- Add event listeners for marker detection ---
+                // These events fire when the marker becomes visible or hidden
+                dynamicMarker.addEventListener('markerFound', () => {
+                    console.log('Marker Found!');
+                    // Show the indicator box when the marker is found
+                    markerIndicatorBox.object3D.visible = true;
+                    // Attempt to load the model when the marker is found
+                     dynamicModel.setAttribute('gltf-model', modelUrl);
+                });
+
+                dynamicMarker.addEventListener('markerLost', () => {
+                    console.log('Marker Lost!');
+                     // Hide the indicator box when the marker is lost
+                    markerIndicatorBox.object3D.visible = false;
+                     // Optionally, remove the model when the marker is lost
+                     // dynamicModel.removeAttribute('gltf-model');
+                });
+                 // ---------------------------------------------
+
 
                 // Add an event listener to check if the model loads successfully
                 dynamicModel.addEventListener('model-loaded', () => {
                     console.log('3D model loaded successfully!');
+                    // Remove the indicator box once the model is loaded
+                    if (markerIndicatorBox.parentNode) {
+                         markerIndicatorBox.parentNode.removeChild(markerIndicatorBox);
+                         console.log('Removed marker indicator box.');
+                    }
                 });
 
                 // Add an event listener to catch model loading errors
                 dynamicModel.addEventListener('model-error', (event) => {
                     console.error('Error loading 3D model:', event.detail.src);
-                    qrScannerResults.textContent = `Error loading model: ${event.detail.src}`;
-                    // Optionally, switch back to scanner or show an error message prominently
+                    qrScannerResults.textContent = `Error loading model: ${event.detail.src}. Check console for details.`;
+                    // Keep the indicator box visible if the model fails to load
+                    markerIndicatorBox.object3D.visible = true;
                 });
 
 
-                // Hide the scanner and show the AR scene
+                // Hide the scanner and show the AR scene container
                 qrScannerContainer.style.display = 'none';
                 arSceneContainer.style.display = 'block';
                 console.log("Switched to AR scene container display: block");
 
-                // Manually start the AR.js session after the scene is visible
-                // This is important because we set autoStart: false in the a-scene tag
-                // We add a small delay to ensure the DOM updates before starting AR.js
-                setTimeout(() => {
-                    console.log("Attempting to start AR.js session...");
-                    // Check if AR.js is available on the scene element
+                // --- New AR.js Start Logic ---
+                // Listen for the 'loaded' event on the a-scene element
+                arScene.addEventListener('loaded', () => {
+                    console.log("AR Scene loaded event fired.");
+                     // Manually start the AR.js session
                     if (arScene.components['arjs']) {
+                         console.log("Attempting to start AR.js session after scene loaded...");
                          arScene.components['arjs'].play();
                          console.log("AR.js session started.");
+                         qrScannerResults.textContent = "AR scene active. Look for the QR code."; // Update status
                     } else {
-                         console.error("AR.js component not found on a-scene.");
-                         qrScannerResults.textContent = "AR.js initialization failed.";
+                         console.error("AR.js component not found on a-scene after loaded event.");
+                         qrScannerResults.textContent = "AR.js initialization failed after scene load.";
                     }
-                }, 100); // Small delay
+                });
 
+                // If the scene is already loaded by the time we add the listener,
+                // we might need to trigger the play manually or rely on AR.js's internal state.
+                // For robustness, we can add a small timeout fallback if the 'loaded' event
+                // doesn't seem to fire quickly, although listening for 'loaded' is preferred.
+                // Let's rely on the 'loaded' event for now.
 
             }).catch(err => {
                 // Stop failed, handle it.
@@ -206,12 +250,18 @@
             .catch(err => {
                 // Handle errors related to camera access or initialization
                 console.error("Error starting QR scanner:", err);
-                qrScannerResults.textContent = `Error starting scanner: ${err}. Please ensure camera access is granted.`;
+
+                // Check if the error is specifically NotFoundError
+                if (err.name === 'NotFoundError') {
+                    qrScannerResults.textContent = `Error: No camera found or accessible. Please ensure your device has a camera and that you have granted camera permissions for this website in your browser settings.`;
+                } else if (err.name === 'NotAllowedError') {
+                     qrScannerResults.textContent = `Error: Camera permission denied. Please allow camera access in your browser settings for this website.`;
+                }
+                else {
+                     qrScannerResults.textContent = `Error starting scanner: ${err}. Please ensure camera access is granted.`;
+                }
             });
         };
-
-        // Optional: Add a way to switch back to scanner if needed (e.g., a button in the AR scene)
-        // This is not included in this basic example but would involve reversing the display logic.
 
     </script>
 
