@@ -94,7 +94,7 @@
             id="ar-scene"
             vr-mode-ui="enabled: false;"
             renderer="logarithmicDepthBuffer: true;"
-            arjs='sourceType: webcam; detectionMode: mono; trackingMethod: best;'
+            arjs='sourceType: webcam; detectionMode: mono; trackingMethod: best; autoStart: false;'
             embedded
             inspector="url: https://cdn.jsdelivr.net/gh/aframevr/aframe-inspector@master/dist/aframe-inspector.min.js;"
             loading-screen="enabled: false;"
@@ -137,24 +137,52 @@
 
                 // Use the decoded text (model name) to determine the model and pattern file
                 const modelName = decodedText;
+                // Construct URLs relative to the index.html file
                 const modelUrl = `./models/${modelName}.gltf`; // Assuming .gltf format and models in ./models/
                 const patternUrl = `./patterns/${modelName}.patt`; // Assuming patterns in ./patterns/
 
-                // Update the AR marker and model
+                console.log(`Attempting to load model from: ${modelUrl}`);
+                console.log(`Attempting to load pattern from: ${patternUrl}`);
+
+                // Update the AR marker and model attributes
+                // We set these BEFORE making the AR scene visible
                 dynamicMarker.setAttribute('type', 'pattern');
                 dynamicMarker.setAttribute('url', patternUrl);
                 dynamicModel.setAttribute('gltf-model', modelUrl);
 
+                // Add an event listener to check if the model loads successfully
+                dynamicModel.addEventListener('model-loaded', () => {
+                    console.log('3D model loaded successfully!');
+                });
+
+                // Add an event listener to catch model loading errors
+                dynamicModel.addEventListener('model-error', (event) => {
+                    console.error('Error loading 3D model:', event.detail.src);
+                    qrScannerResults.textContent = `Error loading model: ${event.detail.src}`;
+                    // Optionally, switch back to scanner or show an error message prominently
+                });
+
+
                 // Hide the scanner and show the AR scene
                 qrScannerContainer.style.display = 'none';
                 arSceneContainer.style.display = 'block';
+                console.log("Switched to AR scene container display: block");
 
-                // AR.js should start automatically when the scene is visible,
-                // but sometimes a small delay or manual kick might be needed
-                // depending on the browser and device.
-                // For robustness, you might want to ensure the AR scene is fully
-                // initialized or wait a moment here if issues arise.
-                console.log("Switched to AR scene.");
+                // Manually start the AR.js session after the scene is visible
+                // This is important because we set autoStart: false in the a-scene tag
+                // We add a small delay to ensure the DOM updates before starting AR.js
+                setTimeout(() => {
+                    console.log("Attempting to start AR.js session...");
+                    // Check if AR.js is available on the scene element
+                    if (arScene.components['arjs']) {
+                         arScene.components['arjs'].play();
+                         console.log("AR.js session started.");
+                    } else {
+                         console.error("AR.js component not found on a-scene.");
+                         qrScannerResults.textContent = "AR.js initialization failed.";
+                    }
+                }, 100); // Small delay
+
 
             }).catch(err => {
                 // Stop failed, handle it.
@@ -172,6 +200,7 @@
 
         // Start the QR scanner when the window loads
         window.onload = function() {
+             console.log("Window loaded. Starting QR scanner...");
              // Request camera permission and start scanning
             html5QrCode.start({ facingMode: "environment" }, qrCodeConfig, onScanSuccess, onScanError)
             .catch(err => {
