@@ -1,130 +1,190 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WebAR QR Code Example</title>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.139.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.139.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ar.js@2.2.2/aframe/build/aframe.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>QR Code AR Loader</title>
+    <meta name="description" content="Load AR models using QR codes.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-tools/ar.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
     <style>
-      body {
-        font-family: 'Roboto', sans-serif;
-        margin: 0;
-        overflow: hidden;
-      }
-      .ar-container {
-        position: relative;
-        width: 100%;
-        height: 100vh;
-      }
-      #ar-scene {
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        top: 0;
-        left: 0;
-      }
-      .loading-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.8);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        font-size: 24px;
-        z-index: 1000;
-      }
-      .hidden {
-        display: none;
-      }
-      #text-overlay {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: rgba(0, 0, 0, 0.7);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 5px;
-        z-index: 100;
-        font-size: 18px;
-      }
+        /* Basic styling for layout */
+        body {
+            margin: 0;
+            overflow: hidden; /* Prevent scrolling */
+            font-family: sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #qr-scanner-container {
+            text-align: center;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #qr-scanner-container h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        #reader {
+            width: 100%; /* Make scanner responsive */
+            max-width: 400px; /* Max width for scanner */
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden; /* Ensure video stays within bounds */
+        }
+
+        #qr-scanner-results {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #555;
+        }
+
+        /* Initially hide the AR scene container */
+        #ar-scene-container {
+            display: none;
+            width: 100%;
+            height: 100vh; /* Take full viewport height */
+            position: absolute; /* Cover the whole screen */
+            top: 0;
+            left: 0;
+        }
+
+        /* Style for the AR scene itself */
+        #ar-scene {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            #qr-scanner-container {
+                padding: 15px;
+            }
+            #qr-scanner-container h1 {
+                font-size: 1.5em;
+            }
+            #qr-scanner-results {
+                font-size: 1em;
+            }
+        }
     </style>
-  </head>
-  <body>
-    <div class="ar-container">
-      <div class="loading-overlay" id="loading">Loading...</div>
-      <a-scene id="ar-scene" embedded arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; maxDetectionRate: 30; canvasWidth: 640; canvasHeight: 480;">
-        <a-marker id="qr-marker" type="qr" qrcode="car">
-          <a-entity id="car-model" gltf-model="car.glb" scale="0.005 0.005 0.005" visible="false" rotation="0 90 0"></a-entity>
-        </a-marker>
-        <a-camera id="ar-camera" position="0 0 0"></a-camera>
-      </a-scene>
-      <div id="text-overlay" class="hidden"></div>
+</head>
+<body>
+
+    <div id="qr-scanner-container">
+        <h1>Scan QR Code to Load AR Model</h1>
+        <div id="reader"></div>
+        <div id="qr-scanner-results">Scanning...</div>
     </div>
+
+    <div id="ar-scene-container">
+        <a-scene
+            id="ar-scene"
+            vr-mode-ui="enabled: false;"
+            renderer="logarithmicDepthBuffer: true;"
+            arjs='sourceType: webcam; detectionMode: mono; trackingMethod: best;'
+            embedded
+            inspector="url: https://cdn.jsdelivr.net/gh/aframevr/aframe-inspector@master/dist/aframe-inspector.min.js;"
+            loading-screen="enabled: false;"
+        >
+
+            <a-marker id="dynamic-marker" type="unknown">
+                <a-entity
+                    id="dynamic-model"
+                    scale="0.5 0.5 0.5"  position="0 0 0"    rotation="0 0 0"
+                >
+                    </a-entity>
+            </a-marker>
+
+            <a-entity camera></a-entity>
+
+        </a-scene>
+    </div>
+
     <script>
-      const scene = document.querySelector("#ar-scene");
-      const carModel = document.querySelector("#car-model");
-      const loadingOverlay = document.querySelector("#loading");
-      const textOverlay = document.querySelector("#text-overlay");
-      let modelLoaded = false;
+        // Get references to the HTML elements
+        const qrScannerContainer = document.getElementById('qr-scanner-container');
+        const arSceneContainer = document.getElementById('ar-scene-container');
+        const qrScannerResults = document.getElementById('qr-scanner-results');
+        const dynamicMarker = document.getElementById('dynamic-marker');
+        const dynamicModel = document.getElementById('dynamic-model');
+        const arScene = document.getElementById('ar-scene');
 
-      // Load the 3D model
-      const loader = new THREE.GLTFLoader();
-      loader.load(
-        "car.glb", // Adjusted path for GitHub Pages
-        (gltf) => {
-          const model = gltf.scene;
-          model.name = "car";
-          carModel.setObject3D("mesh", model);
-          modelLoaded = true;
-          if (loadingOverlay) {
-            loadingOverlay.classList.add("hidden");
-          }
-        },
-        (xhr) => {
-          if (loadingOverlay) {
-            loadingOverlay.innerHTML = `Loading model: ${((xhr.loaded / xhr.total) * 100).toFixed(2)}%`;
-          }
-        },
-        (error) => {
-          console.error("Error loading model:", error);
-          if (loadingOverlay) {
-            loadingOverlay.innerHTML = "Error loading model.";
-          }
-        }
-      );
+        // Configuration for html5-qrcode
+        const html5QrCode = new Html5Qrcode("reader");
+        const qrCodeConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-      scene.addEventListener("markerFound", (event) => {
-        const markerId = event.target.id;
-        console.log(`Marker found: ${markerId}`);
-        textOverlay.classList.add("hidden");
+        // Function called when a QR code is successfully scanned
+        const onScanSuccess = (decodedText, decodedResult) => {
+            console.log(`QR Code scanned: ${decodedText}`);
+            qrScannerResults.textContent = `Scanned: ${decodedText}`;
 
-        // Get the QR code data.  Assumes AR.js can read the data.
-        const qrData = event.target.getAttribute('qrcode');
+            // Stop the QR scanner
+            html5QrCode.stop().then(() => {
+                console.log("QR scanner stopped.");
 
-        if (qrData === "car" && modelLoaded) {
-          carModel.setAttribute("visible", "true");
-          textOverlay.classList.add("hidden");
-        } else {
-          carModel.setAttribute("visible", "false");
-          textOverlay.textContent = "Coming Soon";
-          textOverlay.classList.remove("hidden");
-        }
-      });
+                // Use the decoded text (model name) to determine the model and pattern file
+                const modelName = decodedText;
+                const modelUrl = `./models/${modelName}.gltf`; // Assuming .gltf format and models in ./models/
+                const patternUrl = `./patterns/${modelName}.patt`; // Assuming patterns in ./patterns/
 
-      scene.addEventListener("markerLost", (event) => {
-        const markerId = event.target.id;
-        console.log(`Marker lost: ${markerId}`);
-        carModel.setAttribute("visible", "false");
-        textOverlay.classList.add("hidden");
-      });
+                // Update the AR marker and model
+                dynamicMarker.setAttribute('type', 'pattern');
+                dynamicMarker.setAttribute('url', patternUrl);
+                dynamicModel.setAttribute('gltf-model', modelUrl);
+
+                // Hide the scanner and show the AR scene
+                qrScannerContainer.style.display = 'none';
+                arSceneContainer.style.display = 'block';
+
+                // AR.js should start automatically when the scene is visible,
+                // but sometimes a small delay or manual kick might be needed
+                // depending on the browser and device.
+                // For robustness, you might want to ensure the AR scene is fully
+                // initialized or wait a moment here if issues arise.
+                console.log("Switched to AR scene.");
+
+            }).catch(err => {
+                // Stop failed, handle it.
+                console.error("Failed to stop QR scanner:", err);
+                qrScannerResults.textContent = `Error stopping scanner: ${err}`;
+            });
+        };
+
+        // Function called if there's an error during scanning
+        const onScanError = (errorMessage) => {
+            // You can log errors, but avoid showing them constantly to the user
+            // console.warn(`QR Code scanning error: ${errorMessage}`);
+            // qrScannerResults.textContent = `Scanning error: ${errorMessage}`; // Optional: show error
+        };
+
+        // Start the QR scanner when the window loads
+        window.onload = function() {
+             // Request camera permission and start scanning
+            html5QrCode.start({ facingMode: "environment" }, qrCodeConfig, onScanSuccess, onScanError)
+            .catch(err => {
+                // Handle errors related to camera access or initialization
+                console.error("Error starting QR scanner:", err);
+                qrScannerResults.textContent = `Error starting scanner: ${err}. Please ensure camera access is granted.`;
+            });
+        };
+
+        // Optional: Add a way to switch back to scanner if needed (e.g., a button in the AR scene)
+        // This is not included in this basic example but would involve reversing the display logic.
+
     </script>
-  </body>
+
+</body>
 </html>
